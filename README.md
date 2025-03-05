@@ -1,4 +1,9 @@
 # 2025-GrowthRates
-Everything about the growth rate article from TE
 
-WORK IN PROGRESS!!!!
+## WORK IN PROGRESS!!!!
+
+
+This repository contains the integrality of the scripts and files needed to reproduce the data analysis presented in the aforementioned article. Note that the authors are in no case Unix/R/Julia professionals, and the code can certainly be written in a more idiomatic way. Do not hesitate to reach out for further help.
+
+The following links will bring you to:
+- [The processing of the sequences and picking of OTUs](Pipeline%20explanations.md)
