@@ -7,3 +7,4 @@ This repository contains the integrality of the scripts and files needed to repr
 
 The following links will bring you to:
 - [The processing of the sequences and picking of OTUs](Pipeline%20explanations.md)
+- The decontamination and replicate processing pipelines
