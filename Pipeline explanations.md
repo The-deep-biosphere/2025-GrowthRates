@@ -110,72 +110,107 @@ vsearch --derep_fulllength AllSeqs.fa \
 - `--fasta_width`: The layout of the fasta file. Using 0, each sequence is written fully on one line.
 - `--output`: Name of the output file.
 
+### 7. Cluster at 97%
+Now we can pool together sequences that are 97% similar into OTUs. While using raw sequences is a possibility, it adds some noise and computer power needs. 97% is a commonly used threshold.
+```bash
+vsearch --cluster_size AllSeqs.derep.fasta \
+	--id 0.97 \
+	--strand plus \
+	--sizein \
+	--sizeout \
+	--fasta_width 0 \
+	--centroids Centroids.fasta
+```
+- `--cluster_size`: What we want to do, cluster sequences.
+- `--id`: The similarity that we want to use as a threshold, 97%.
+- `--strand`: Do we want to compare only the same plus strand, or also the reverse complement?
+- `--sizein`: To say that there is quantity information already in the name of each sequence.
+- `--sizeout`: Add the amount of time this sequence is present in the name of the sequence.
+- `--fasta_width`: The layout of the fasta file. Using 0, each sequence is written fully on one line.
+- `--centroids`: The name of the output, a fasta files containing a centroid sequence for each OTU.
+
+### 8. Sort centroids by size
+Before looking for chimera, we need to organise our centroids by size (quantity).
+```bash
+vsearch --sortbysize Centroids.fasta \
+--sizein \
+--sizeout \
+--fasta_width 0 \
+--output Centroids.sorted.fasta
+```
+- `--sortbysize`: The input file to be sorted.
+- `--sizein`: To say that there is quantity information already in the name of each sequence.
+- `--sizeout`: Add the amount of time this sequence is present in the name of the sequence.
+- `--fasta_width`: The layout of the fasta file. Using 0, each sequence is written fully on one line.
+- `--output`: Name of the output file.
 
 
+### 9. Look for chimeras.
+Chimeras are artificial products of PCR amplification. We can look for them within the dataset (the algorithm looks for sequences made of several other sequences), or against a reference dataset (the algorithm looks for sequences made of several sequences from this dataset). Here we run both.
+``` bash
+vsearch --uchime_denovo Centroids.sorted.fasta \
+	--sizein \
+	--sizeout \
+	--fasta_width 0 \
+	--qmask none \
+	--nonchimeras Centroids.denovo.nonchimeras.fasta \
+
+vsearch --uchime_ref Centroids.denovo.nonchimeras.fasta \
+	--db SILVA_138.1_SSURef_NR99_tax_silva.fasta \
+	--sizein \
+	--sizeout \
+	--fasta_width 0 \
+	--qmask none \
+	--dbmask none \
+	--nonchimeras Centroids.nonchimeras.fasta
+```
+- `--uchime_denovo`: The file that needs to be run through *denovo* chimera detection.
+- `--qmask`: Masking is a method that detect and replaces areas with low complexity in the sequence (ie, that have mainly the same base pair many times, or repeats) and replace it by N's. The rational is that it may create issues in alignments and chimera detection. We do not want masking here.
+- `--nonchimeras`: The output file.
+- `--db`: The database to be used. Here we use SILVA138.
+- `--dbmmask`: Like `--qmask`, but for the database
+- `--sizein`: To say that there is quantity information already in the name of each sequence.
+- `--sizeout`: Add the amount of time this sequence is present in the name of the sequence.
+- `--fasta_width`: The layout of the fasta file. Using 0, each sequence is written fully on one line.
+
+### 10. Relabel OTUs as OTU_xxx
+That is just for simplicity.
+``` bash
+vsearch --fastx_filter Centroids.nonchimeras.fasta \
+--sizein \
+--fasta_width 0 \
+--relabel OTU_ \
+--fastaout Otus.fasta
+```
+### 11. Map OTUs
+Now that we have a clean set of OTUs without chimeras, we can map our original sequences (produced at step 5) to them, and get our OTU table.
+``` bash
+vsearch --usearch_global AllSeqs.fa \
+--db Otus.fasta \
+--id 0.97 \
+--strand plus \
+--sizein \
+--sizeout \
+--fasta_width 0 \
+--qmask none \
+--dbmask none \
+--otutabout Otutab.txt
+```
+- `--db`: The list of OTUs that we made.
+- `--id`: The similarity that we want to use as a threshold, 97%.
+- `--strand`: Do we want to compare only the same plus strand, or also the reverse complement?
+- `--sizein`: To say that there is quantity information already in the name of each sequence.
+- `--sizeout`: Add the amount of time this sequence is present in the name of the sequence.
+- `--fasta_width`: The layout of the fasta file. Using 0, each sequence is written fully on one line.
+- `--qmask`: Masking is a method that detect and replaces areas with low complexity in the sequence (ie, that have mainly the same base pair many times, or repeats) and replace it by N's. The rational is that it may create issues in alignments and chimera detection. We do not want masking here.
+- `--dbmmask`: Like `--qmask`, but for the database
+- `--otutabout`: The name of the output.
 
 
-# Clustering at 97% similarity.
-$VSEARCH --cluster_size AllSeqs.derep.fasta \
-    --threads $THREADS \
-    --id 0.97 \
-    --strand plus \
-    --sizein \
-    --sizeout \
-    --fasta_width 0 \
-    --centroids Centroids.fasta
-
-
-# Sort centroids and remove singletons
-$VSEARCH --sortbysize Centroids.fasta \
-    --threads $THREADS \
-    --sizein \
-    --sizeout \
-    --fasta_width 0 \
-    --output Centroids.sorted.fasta
-
-# denovo chimera detection.
-$VSEARCH --uchime_denovo Centroids.sorted.fasta \
-    --sizein \
-    --sizeout \
-    --fasta_width 0 \
-    --qmask none \
-    --nonchimeras Centroids.denovo.nonchimeras.fasta \
-
-
-# Reference chimera detection against SILVA138.
-$VSEARCH --uchime_ref Centroids.denovo.nonchimeras.fasta \
-    --threads $THREADS \
-    --db /home/svenlemoinebauer/Desktop/Work/Projects/202106_AnnaSequencing/SequencingProcessing/SILVA_138.1_SSURef_NR99_tax_silva.fasta \
-    --sizein \
-    --sizeout \
-    --fasta_width 0 \
-    --qmask none \
-    --dbmask none \
-    --nonchimeras Centroids.nonchimeras.fasta
-
-# Relabel OTUs.
-$VSEARCH --fastx_filter Centroids.nonchimeras.fasta \
-    --threads $THREADS \
-    --sizein \
-    --fasta_width 0 \
-    --relabel OTU_ \
-    --fastaout Otus.fasta
-
-# Map sequences to OTUs.
-$VSEARCH --usearch_global AllSeqs.fa \
-    --threads $THREADS \
-    --db Otus.fasta \
-    --id 0.97 \
-    --strand plus \
-    --sizein \
-    --sizeout \
-    --fasta_width 0 \
-    --qmask none \
-    --dbmask none \
-    --otutabout Otutab.txt
-
- # Sort OTU table numerically.
+And we also sort the OTU table numerically.
+``` bash
 sort -k1.5n Otutab.txt > Otutab.sorted.txt
+```
 
 # To run Lulu, we first need to make a database out of the OTU file.
 makeblastdb -in Otus.fasta -dbtype nucl
