@@ -212,20 +212,83 @@ And we also sort the OTU table numerically.
 sort -k1.5n Otutab.txt > Otutab.sorted.txt
 ```
 
-# To run Lulu, we first need to make a database out of the OTU file.
+
+### 12. Clean with Lulu
+We do one extra step of cleaning here, using the [LULU](https://github.com/tobiasgf/lulu) algorithm. The software pools together OTUs that it believes are the results of sequencing errors.
+First one need to produce a database using `makebalstdb`, and then blast our fasta file against itself using `blastn`.
+``` bash
 makeblastdb -in Otus.fasta -dbtype nucl
-blastn -db Otus.fasta -outfmt '6 qseqid sseqid pident' -out LULU_match_list.txt -qcov_hsp_perc 95 -perc_identity 95 -query Otus.fasta -num_threads 12
 
-Run the LULU.R script
+blastn -db Otus.fasta -outfmt '6 qseqid sseqid pident' \
+	-out LULU_match_list.txt -qcov_hsp_perc 95 -perc_identity 95 \
+	-query Otus.fasta -num_threads 12
+```
+- `-dbtype`: type of sequence, nucleotides here.
+- `-db`: The database used. The one we just created in our case.
+- `-outfmt`: The format of the output.
+- `-out`: The output file.
+- `-qcove_hsp_perc`: The coverage percentage needed per alignment.
+- `-perc_identity`: The similarity percentage needed.
+- `-query`: Our fasta file.
+- `-num_threads`: Amount of CPUs to use.
 
-# Remove sequences from fasta file that got removed using LULU.
-python3 filter_seq_by_OTUtable.py Otus.fasta Otutab_curated.tsv > Otus_curated.fasta
+We then use the following R script. The file should be saved in the same directory.
+``` R
+setwd(".")
+require(lulu)
+require(methods)
 
-# Sort OTU table numerically.
+matchlist = read.delim("LULU_match_list.txt", header=FALSE,as.is=TRUE, stringsAsFactors=FALSE)
+otus.all = read.delim("Otutab.sorted.txt",row.names=1,header=T,sep="\t")
+curated_result <- lulu(otus.all,matchlist, minimum_match = 97)
+lulus = curated_result$curated_table
+write.table(data.frame("OTU"=rownames(lulus),lulus),"Otutab_curated.tsv", row.names=FALSE, quote=F, sep="\t")
+```
+
+LULU only makes modifications to the OTU table, so we can run the following python3 script to remove the matching OTUs from the fasta file too. This script is written by Anders Lanzén.
+``` python
+#!/usr/bin/env python
+
+import sys
+
+ot = open(sys.argv[2],"r")
+fa = open(sys.argv[1],"r")
+otuIDs = set()
+
+firstLine = True
+for line in ot:
+    l = line.replace("\n","")
+    if firstLine:
+        firstLine = False
+    else:
+        otuID = l.split("\t")[0]
+        otuIDs.add(otuID)
+
+ot.close()
+        
+for line in fa:
+    l = line.replace("\n","") 
+    if l.startswith(">"):
+        seqId = l[1:].split(" ")[0]
+        if ";size" in seqId:
+            seqId = seqId[:seqId.find(";size")]
+        if seqId in otuIDs:
+            otu_inc=True
+            print(">%s" % seqId)
+        else:
+            otu_inc=False
+    elif otu_inc:
+        print(l)
+    
+fa.close()
+```
+### 13. Taxonomic assignments
+First let's start with sorting the OTU by abundance:
+```bash
 sort -k1.5n Otutab_curated.tsv > Otutab_curated.sorted.tsv
-
-# Amount reads in fasta file. 
-grep -c "^>" Otus_curated.fasta
-
-# Run Crest against the moded SILVA138 database
-crest4 -f Otus_curated.fasta -t 12
+```
+Finally, we want to give a taxonomic assignment to the sequences that we have. For this we use the [Crest4](https://github.com/xapple/crest4) software that uses a last common ancestor algorithm. Assignments are given based on a modified SILVA138 database.
+``` bash
+crest4 -f Otus_curated.fasta
+```
+Voila! The sequences are now ready to be processed in the decontamination pipeline.
