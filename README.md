@@ -11,3 +11,5 @@ The following links will bring you to:
 
 video for KDE
 https://www.youtube.com/watch?v=t1PEhjyzxLA
+
+Sequences are deposited at:
