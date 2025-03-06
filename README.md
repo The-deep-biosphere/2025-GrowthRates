@@ -13,3 +13,4 @@ video for KDE
 https://www.youtube.com/watch?v=t1PEhjyzxLA
 
 Sequences are deposited at:
+Contact: Sven Le Moine Bauer or Steffen Jørgensen
