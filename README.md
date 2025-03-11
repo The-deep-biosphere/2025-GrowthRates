@@ -16,8 +16,6 @@ The following links will bring you to:
 - [The Julia script (the main step of this wokflow)](./JuliaScript/JuliaScript.md)
 - Plotting the results
 
-video for KDE
-https://www.youtube.com/watch?v=t1PEhjyzxLA
 
 
 Contact: Sven Le Moine Bauer or Steffen Jørgensen
