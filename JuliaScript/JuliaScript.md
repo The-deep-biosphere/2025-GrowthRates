@@ -163,7 +163,7 @@ uqs_OTU_3 = quantile.(KDEs_OTU_3, uq);
 # Remove objects to save memory
 Sediminis = 0; KDEs_Sediminis = 0;
 ```
-We also want to truncate any negative value to 0.1 due to the log scale on future plots.
+We also want to replace any negative value by 1 due to the log scale on future plots.
 ```Julia
 meds_Sediminis[meds_Sediminis .< 1] .= 1;
 uqs_Sediminis[uqs_Sediminis .< 1] .= 1;
