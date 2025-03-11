@@ -1,4 +1,4 @@
-# 2025-GrowthRates
+# In situ microbial growth rates in deep-sea sediments
 
 ## WORK IN PROGRESS!!!!
 
