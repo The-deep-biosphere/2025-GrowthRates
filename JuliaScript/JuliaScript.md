@@ -139,3 +139,44 @@ function get_KDEs(agemodel, taxon, n_realisations = n_realisations, n_resamples 
     [UncertainValue(UnivariateKDE, x) for x in Nvec]
 end;
 ```
+
+## Producing the KDEs
+Now we are ready to produce the data. As mentionned earlier, any dataset which contains a mean and a standard deviation can be used. Here we will only focus on the OTU_3 shown in Figure 2.
+
+```Julia
+# We can set a seed to allow replication.
+Random.seed!(123)
+# Select the abundance data for OTU_3
+OTU_3 = [otus[:, 50] otus_sd[:, 50]]
+# Abundance data is transformed to probability distributions, i.e., uncertain values, assuming that the uncertainty is normally distributed.
+OTU_3 = [UncertainValue(Normal, OTU_3[row, 1], OTU_3[row, 2], trunc_lower = 0.0001) for row in 1:size(OTU_3, 1)];
+# Compute the KDEs
+KDEs_OTU_3 = get_KDEs(age_model_c, OTU_3);
+```
+
+From the output, we can obtain the median and quantiles.
+```Julia
+meds_OTU_3 = median.(KDEs_OTU_3)
+lqs_OTU_3 = quantile.(KDEs_OTU_3, lq)
+uqs_OTU_3 = quantile.(KDEs_OTU_3, uq);
+
+# Remove objects to save memory
+Sediminis = 0; KDEs_Sediminis = 0;
+```
+We also want to truncate any negative value to 0.1 due to the log scale on future plots.
+```Julia
+meds_Sediminis[meds_Sediminis .< 1] .= 1;
+uqs_Sediminis[uqs_Sediminis .< 1] .= 1;
+lqs_Sediminis[lqs_Sediminis .< 1] .= 1;
+```
+Good, now we can export the data for plotting in R (last script).
+```Julia
+df = DataFrame(
+    Age = age_grid[1:end-1],
+    OTU_3_Median = meds_OTU_3,
+    OTU_3_LowerQuantile = lqs_OTU_3,
+    OTU_3_UpperQuantile = uqs_OTU_3,
+)
+CSV.write("./FILENAME.csv", df);
+```
+## Computing growth/decay rates
