@@ -52,7 +52,90 @@ fungenes = readdlm("./Input/Julia_qPCR.csv", ',', Float64, skipstart = 1);
 fungenes = fungenes[:, 5:8];
 ```
 
+## Define necessary parameters and functions
+A number of functions are set up and parameters decided to streamline down-stream analysis.
 
-video for KDE
-https://www.youtube.com/watch?v=t1PEhjyzxLA
+First let us set up the parameters. `n_realisations` is the number of realisations comprising the age model ensemble and used to preallocate appropriately sized output vectors. `n_resamples` sets the number of resamples per sediment depth per age model realisation. `bin_width` sets the width of each time grid cell in years. `age_grid` creates a continuous grid from the lowest to the highest recorded ages in the imported age model by the width of `bin_width`. `lq` and `uq` are the lower and upper quantiles that our uncertainty will represent.
 
+```Julia
+n_realisations = size(age_model_c)[2];
+n_resamples = 50;
+bin_width = 50;
+age_grid = floor(Int, minimum(age_model_c)):bin_width:ceil(Int, maximum(age_model_c));
+lq = 0.25;
+uq = 0.75;
+```
+
+We will need a local function for distributing data to grid.
+```Julia
+function to_grid(t, vals, tgrid, extrapolation_bc = NaN)
+    Interpolations.LinearInterpolation(t, vals, extrapolation_bc = extrapolation_bc).(tgrid)
+    end;
+```
+
+And finally the `get_KDEs()` function. This is the workhorse function of the script. It does a certain amount of things:
+- First, it takes an age model realisation, abundance data as well as specifications as to the number of resamples to do and how to distribute them to a time grid.
+- Second, it will iterate over each realization of the age model (for loop), and do:
+  - It checks whether elements in each realisation are strictly increasing and adds increments if not. If this was not the case, there would be issues when interpolating the abundance data onto the time grid later on.
+  - It then resamples the microbial abundance at for each of the 173 samples. 
+  - Based on the age value (specific to the given realization), the resampled data is mapped by interpolation onto and age grid.
+- Third, it removes empty elements.
+- Finally, it creates Kernel Density Estimates (KDEs) to from the data.
+
+KDEs is a very powerful method that smooths discrete data points into a continuous probability distribution, estimating the underlying density function. For more theory on the topic, one can watch this [video](https://www.youtube.com/watch?v=t1PEhjyzxLA).
+
+```Julia
+function get_KDEs(agemodel, taxon, n_realisations = n_realisations, n_resamples = n_resamples, bin_width = bin_width)
+    # Set parameters
+    age_grid = floor(Int, minimum(agemodel)):bin_width:ceil(Int, maximum(agemodel))
+    M = zeros(length(age_grid), n_realisations, n_resamples);
+
+    # Run for loop
+    for i in 1:n_realisations
+        # select age model ensemble
+        age_model_i = agemodel[:, i]
+
+        # add incremental value to duplicate age values
+        for i in 1:size(age_model_i)[1]
+        dups = findall(x -> x == age_model_i[i], age_model_i)
+            if size(dups)[1] > 1
+                age_model_i[dups[2:end]] = age_model_i[dups[2:end]] .+ 0.0001
+            end
+        end
+
+        # Add incremental value if diff is negative (only occurs around turbidite due to rounding effects)
+        for i in 1:size(age_model_i)[1]-1
+            di = diff([age_model_i[i], age_model_i[i+1]]) 
+            if di[1] <= 0
+                age_model_i[i+1] = age_model_i[i+1] - 100 * di[1]
+            end
+        end
+
+        # perform resampling
+        for j in 1:n_resamples
+            realisation_i = resample(taxon, TruncateMinimum(0))
+            intp_realisation_i = to_grid(age_model_i, realisation_i, age_grid)
+            M[:, i, j] = intp_realisation_i
+        end
+    end
+
+    # Flatten the 3D array M to a 2D array Mvec
+    Mvec = zeros(length(age_grid), n_realisations*n_resamples);
+    for i in 1:size(Mvec)[1]
+        Mvec[i,:] = M[i,:,:]
+    end
+    M = 0
+
+    # Remove NaNs resulting from empty elements
+    Nvec = [Mvec[i, isnan.(Mvec[i, :]) .== 0] for i in 1:size(Mvec)[1]];
+    Mvec = 0
+
+    # Remove the first bin if empty
+    if size(Nvec[1])[1] == 0
+        Nvec = Nvec[2:end]
+    end;
+
+    # Convert to and return Kernel Density Estimates
+    [UncertainValue(UnivariateKDE, x) for x in Nvec]
+end;
+```
