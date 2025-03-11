@@ -13,7 +13,7 @@ The following links will bring you to:
 - [The processing of the sequences and picking of OTUs](Pipeline%20explanations.md)
 - [The decontamination and replicate processing pipelines](./Decontamination_Pooling/DecontaminationPooling.md)
 - [The preparation of the data for the Julia script](./PreparationJulia/PreparationJulia.md)
-- The Julia script (the main step of this wokflow)
+- [The Julia script (the main step of this wokflow)](./JuliaScript/JuliaScript.md)
 - Plotting the results
 
 video for KDE
