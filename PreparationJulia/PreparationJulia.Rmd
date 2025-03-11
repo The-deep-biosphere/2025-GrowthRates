@@ -1,0 +1,201 @@
+---
+title: "Preparation for the Julia script"
+author: "Sven Le Moine Bauer"
+date: "2025-03-11"
+output: github_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+Now that our data is cleaned, we can make it ready for the Julia script. Mainly this is about defining which microbial groups we want to investigate and then scale their relative abundance with the qPCR data in order to recover their absolute abundance. The scripts that follows is specific to our needs, meaning that:  
+- We have the relative abundance of the prokaryotic groups obtained through sequencing with universal primers (archaea and bacteria together).  
+- The quantitative data was obtained through qPCR using specific primers for archaea and bacteria, separately.  
+- We will look at the dynamics of specific taxonomic groups, so our OTUs will be grouped based on taxonomic information.  
+
+Depending on the type of data that one has, and the aim (for example dynamics of a specific functional group), the process should be adapted. In the end of this script, you should have the absolute abundance of your microbial group of interest in the form of a mean and a standard deviation for each sample. 
+
+## Loading and preparing the data
+Let's start by loading the libraries and set up the working directory.
+```{r libraries, message = FALSE}
+library(phyloseq)
+
+# Set directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Sets the directory to the place the script is saved.
+```
+
+Load the data.
+```{r inputs1}
+# Compared to before, the qPCRr data for hzo and amoA have been added into this Metatable file.
+Metatable <- read.csv("./Input/Metatable.csv", row.names = 1, sep = ",")
+# OTU and taxonomy tables
+OTUtable <- read.csv("./Input/Otutab_pooled.tsv", row.names = 1, sep = "\t")
+taxtable <- read.csv("./Input/Tax_decontaminated.csv", row.names = 1)
+
+# And let's make a phyloseq table immediately
+OTU = otu_table(as.matrix(OTUtable), taxa_are_rows = TRUE)
+TAX = tax_table(as.matrix(taxtable))
+samples = sample_data(Metatable)
+GC10 <- phyloseq(OTU, TAX, samples)
+GC10
+```
+
+And we will make some phyloseq objects at each taxonomic level.
+```{r inputs2}
+GC10_genus <- tax_glom(GC10, taxrank = "Genus")
+GC10_family <- tax_glom(GC10, taxrank = "Family")
+GC10_order <- tax_glom(GC10, taxrank = "Order")
+GC10_class <- tax_glom(GC10, taxrank = "Class")
+GC10_phylum <- tax_glom(GC10, taxrank = "Phylum")
+
+# For better visualization we will give the taxonomic name to each taxa, rather than OTU_xxx
+taxa_names(GC10_genus) <- as.data.frame(tax_table(GC10_genus))$Genus
+taxa_names(GC10_family) <- as.data.frame(tax_table(GC10_family))$Family
+taxa_names(GC10_order) <- as.data.frame(tax_table(GC10_order))$Order
+taxa_names(GC10_class) <- as.data.frame(tax_table(GC10_class))$Class
+taxa_names(GC10_phylum) <- as.data.frame(tax_table(GC10_phylum))$Phylum
+```
+
+
+Now we can get out of phyloseq. We export the OTU table, splitting arc and bac as these have different qPCr data. We do a transpose as we ll need samples as rows later.
+```{r inputs3}
+OTU_species_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10, Domain == "Archaea"))))
+OTU_species_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10, Domain == "Bacteria"))))
+OTU_genus_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10_genus, Domain == "Archaea"))))
+OTU_genus_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10_genus, Domain == "Bacteria"))))
+OTU_family_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10_family, Domain == "Archaea"))))
+OTU_family_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10_family, Domain == "Bacteria"))))
+OTU_order_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10_order, Domain == "Archaea"))))
+OTU_order_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10_order, Domain == "Bacteria"))))
+OTU_class_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10_class, Domain == "Archaea"))))
+OTU_class_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10_class, Domain == "Bacteria"))))
+OTU_phylum_Arc <- as.data.frame(t(otu_table(subset_taxa(GC10_phylum, Domain == "Archaea"))))
+OTU_phylum_Bac <- as.data.frame(t(otu_table(subset_taxa(GC10_phylum, Domain == "Bacteria"))))
+```
+
+
+Now let's prepare our qPCR data. We need to replace NAs in qPCR Arc as we cannot have 0s in our framework later on. One can decide how to do this, but here we will use the % of Arc in the sequencing data to infer quantitative infromation from the 16S Bac qPCR value. For the standard deviation, we take 10% of the mean, which we have calculated to be the median value for standard deviation in our dataset.
+```{r inputs4}
+# This need to be done for samples 89, 100 and 166.
+Metatable[89, 4] <- Metatable[89,2]*sum(OTU_genus_Arc['GS19_GC10_89',])/(1-sum(OTU_genus_Arc['GS19_GC10_89',]))
+Metatable[100, 4] <- Metatable[100,2]*sum(OTU_genus_Arc['GS19_GC10_100',])/(1-sum(OTU_genus_Arc['GS19_GC10_100',]))
+Metatable[166, 4] <- Metatable[166,2]*sum(OTU_genus_Arc['GS19_GC10_166',])/(1-sum(OTU_genus_Arc['GS19_GC10_166',]))
+
+# And the standard deviation
+Metatable[89, 5] <- Metatable[89, 4]*0.1
+Metatable[100, 5] <- Metatable[100, 4]*0.1
+Metatable[166, 5] <- Metatable[166, 4]*0.1
+```
+
+## Scaling the dataset
+Now we can scale everything. This works by multiplying the proportion of a given taxa by the qPCR data. Archaea and Bacteria are separated. For the standard deviation, we decide to distribute the variance using the square root instead of a linear distribution. This is to reflect our higher uncertainty with low abundance taxa.
+
+```{r scale1}
+species_Arc_mean <- (OTU_species_Arc/rowSums(OTU_species_Arc))*Metatable$X16SArc 
+species_Arc_sd <- sqrt(OTU_species_Arc/rowSums(OTU_species_Arc))*Metatable$X16SArc_SD
+species_Bac_mean <- (OTU_species_Bac/rowSums(OTU_species_Bac))*Metatable$X16SBac 
+species_Bac_sd <- sqrt(OTU_species_Bac/rowSums(OTU_species_Bac))*Metatable$X16SBac_SD
+
+genus_Arc_mean <- (OTU_genus_Arc/rowSums(OTU_genus_Arc))*Metatable$X16SArc 
+genus_Arc_sd <- sqrt(OTU_genus_Arc/rowSums(OTU_genus_Arc))*Metatable$X16SArc_SD
+genus_Bac_mean <- (OTU_genus_Bac/rowSums(OTU_genus_Bac))*Metatable$X16SBac 
+genus_Bac_sd <- sqrt(OTU_genus_Bac/rowSums(OTU_genus_Bac))*Metatable$X16SBac_SD
+
+family_Arc_mean <- (OTU_family_Arc/rowSums(OTU_family_Arc))*Metatable$X16SArc 
+family_Arc_sd <- sqrt(OTU_family_Arc/rowSums(OTU_family_Arc))*Metatable$X16SArc_SD
+family_Bac_mean <- (OTU_family_Bac/rowSums(OTU_family_Bac))*Metatable$X16SBac 
+family_Bac_sd <- sqrt(OTU_family_Bac/rowSums(OTU_family_Bac))*Metatable$X16SBac_SD
+
+order_Arc_mean <- (OTU_order_Arc/rowSums(OTU_order_Arc))*Metatable$X16SArc 
+order_Arc_sd <- sqrt(OTU_order_Arc/rowSums(OTU_order_Arc))*Metatable$X16SArc_SD
+order_Bac_mean <- (OTU_order_Bac/rowSums(OTU_order_Bac))*Metatable$X16SBac 
+order_Bac_sd <- sqrt(OTU_order_Bac/rowSums(OTU_order_Bac))*Metatable$X16SBac_SD
+
+class_Arc_mean <- (OTU_class_Arc/rowSums(OTU_class_Arc))*Metatable$X16SArc 
+class_Arc_sd <- sqrt(OTU_class_Arc/rowSums(OTU_class_Arc))*Metatable$X16SArc_SD
+class_Bac_mean <- (OTU_class_Bac/rowSums(OTU_class_Bac))*Metatable$X16SBac 
+class_Bac_sd <- sqrt(OTU_class_Bac/rowSums(OTU_class_Bac))*Metatable$X16SBac_SD
+
+phylum_Arc_mean <- (OTU_phylum_Arc/rowSums(OTU_phylum_Arc))*Metatable$X16SArc 
+phylum_Arc_sd <- sqrt(OTU_phylum_Arc/rowSums(OTU_phylum_Arc))*Metatable$X16SArc_SD
+phylum_Bac_mean <- (OTU_phylum_Bac/rowSums(OTU_phylum_Bac))*Metatable$X16SBac 
+phylum_Bac_sd <- sqrt(OTU_phylum_Bac/rowSums(OTU_phylum_Bac))*Metatable$X16SBac_SD
+```
+
+Now we can regroup the Arc and Bac datasets.
+```{r scale2}
+species_mean <- cbind(species_Arc_mean, species_Bac_mean)
+species_sd <- cbind(species_Arc_sd, species_Bac_sd)
+genus_mean <- cbind(genus_Arc_mean, genus_Bac_mean)
+genus_sd <- cbind(genus_Arc_sd, genus_Bac_sd)
+family_mean <- cbind(family_Arc_mean, family_Bac_mean)
+family_sd <- cbind(family_Arc_sd, family_Bac_sd)
+order_mean <- cbind(order_Arc_mean, order_Bac_mean)
+order_sd <- cbind(order_Arc_sd, order_Bac_sd)
+class_mean <- cbind(class_Arc_mean, class_Bac_mean)
+class_sd <- cbind(class_Arc_sd, class_Bac_sd)
+phylum_mean <- cbind(phylum_Arc_mean, phylum_Bac_mean)
+phylum_sd <- cbind(phylum_Arc_sd, phylum_Bac_sd)
+```
+
+## Polishing everything
+Let's sort the microbial data by abundance (because why not).
+```{r polishing1}
+species_mean <- species_mean[, order(colSums(species_mean), decreasing = T)]
+species_sd <- species_sd[, colnames(species_mean)]
+genus_mean <- genus_mean[, order(colSums(genus_mean), decreasing = T)]
+genus_sd <- genus_sd[, colnames(genus_mean)]
+family_mean <- family_mean[, order(colSums(family_mean), decreasing = T)]
+family_sd <- family_sd[, colnames(family_mean)]
+order_mean <- order_mean[, order(colSums(order_mean), decreasing = T)]
+order_sd <- order_sd[, colnames(order_mean)]
+class_mean <- class_mean[, order(colSums(class_mean), decreasing = T)]
+class_sd <- class_sd[, colnames(class_mean)]
+phylum_mean <- phylum_mean[, order(colSums(phylum_mean), decreasing = T)]
+phylum_sd <- phylum_sd[, colnames(phylum_mean)]
+```
+
+As said earlier, we cannot have 0s in our dataset, therefore we add the minimum value to each 0 (it is 0.0160769), and we do the same with the standard deviation.
+```{r polishing2}
+species_mean[species_mean == 0] <- min(species_mean[species_mean > 0])
+species_sd[species_sd == 0] <- min(species_sd[species_sd > 0])
+genus_mean[genus_mean == 0] <- min(genus_mean[genus_mean > 0])
+genus_sd[genus_sd == 0] <- min(genus_sd[genus_sd > 0])
+family_mean[family_mean == 0] <- min(family_mean[family_mean > 0])
+family_sd[family_sd == 0] <- min(family_sd[family_sd > 0])
+order_mean[order_mean == 0] <- min(order_mean[order_mean > 0])
+order_sd[order_sd == 0] <- min(order_sd[order_sd > 0])
+class_mean[class_mean == 0] <- min(class_mean[class_mean > 0])
+class_sd[class_sd == 0] <- min(class_sd[class_sd > 0])
+phylum_mean[phylum_mean == 0] <- min(phylum_mean[phylum_mean > 0])
+phylum_sd[phylum_sd == 0] <- min(phylum_sd[phylum_sd > 0])
+```
+
+Due to phyloseq, we need to reorder the samples by depth (phyloseq sorts them alphabetically).
+```{r polishing3}
+species_mean <- species_mean[rownames(Metatable),]
+species_sd <- species_sd[rownames(Metatable),]
+genus_mean <- genus_mean[rownames(Metatable),]
+genus_sd <- genus_sd[rownames(Metatable),]
+family_mean <- family_mean[rownames(Metatable),]
+family_sd <- family_sd[rownames(Metatable),]
+order_mean <- order_mean[rownames(Metatable),]
+order_sd <- order_sd[rownames(Metatable),]
+class_mean <- class_mean[rownames(Metatable),]
+class_sd <- class_sd[rownames(Metatable),]
+phylum_mean <- phylum_mean[rownames(Metatable),]
+phylum_sd <- phylum_sd[rownames(Metatable),]
+```
+
+For the qPCR data, we also need to replace the 0s in the amoA and hzo datasets, but we cannot use the same approach as for 16S arc. We will replace each 0 by half of the minimum measured value, and then 10% of that value for the standard deviation.
+```{r polishing4}
+Metatable$amoAArc[is.na(Metatable$amoAArc)] <- min(Metatable$amoAArc, na.rm =T)/2
+Metatable$amoAArc_SD[is.na(Metatable$amoAArc_SD)] <- min(Metatable$amoAArc, na.rm =T)/10
+Metatable$hzo[is.na(Metatable$hzo)] <- min(Metatable$hzo, na.rm =T)/2
+Metatable$hzo_SD[is.na(Metatable$hzo_SD)] <- min(Metatable$hzo, na.rm =T)/10
+```
+
+That is it! Everything can now be exported and used in the Julia script.
