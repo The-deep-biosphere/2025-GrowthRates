@@ -19,7 +19,7 @@ All our pipeline is described in the following links. Note that these steps shou
 - [The decontamination and replicate processing pipelines](./Decontamination_Pooling/DecontaminationPooling.md)
 - [The preparation of the data for the Julia script](./PreparationJulia/PreparationJulia.md)
 - [The Julia script to process the uncertainties (the main step of this wokflow)](./JuliaScript/JuliaScript.md)
-- Plotting the results
+- [Plotting the results](./Plotting/Plotting.md)
 
 
 
