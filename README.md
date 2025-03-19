@@ -22,4 +22,4 @@ All our pipeline is described in the following links. Note that these steps shou
 
 
 
-Contact: [Sven Le Moine Bauer](www.linkedin.com/in/sven-le-moine-bauer-8ba874252) or [Steffen Jørgensen](https://www4.uib.no/finn-ansatte/Steffen.Leth.Jørgensen)
+Contact: [Sven Le Moine Bauer](https://www.linkedin.com/in/sven-le-moine-bauer-8ba874252/)) or [Steffen Jørgensen](https://www4.uib.no/finn-ansatte/Steffen.Leth.Jørgensen)
