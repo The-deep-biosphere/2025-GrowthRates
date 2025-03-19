@@ -1,7 +1,6 @@
+![image](https://github.com/user-attachments/assets/0e27ce99-4e92-4014-9177-e2ecab0411ed)
+
 # In situ microbial growth rates in deep-sea sediments
-
-## WORK IN PROGRESS!!!!
-
 
 This repository contains the integrality of the scripts and files needed to reproduce the data analysis presented in the aforementioned article. Note that the authors are in no case Unix/R/Julia professionals, and the code can certainly be written in a more idiomatic way. Do not hesitate to reach out for further help.
 
@@ -23,4 +22,4 @@ All our pipeline is described in the following links. Note that these steps shou
 
 
 
-Contact: Sven Le Moine Bauer or Steffen Jørgensen
+Contact: [Sven Le Moine Bauer](www.linkedin.com/in/sven-le-moine-bauer-8ba874252) or [Steffen Jørgensen](https://www4.uib.no/finn-ansatte/Steffen.Leth.Jørgensen)
