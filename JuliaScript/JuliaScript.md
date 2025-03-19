@@ -161,13 +161,13 @@ lqs_OTU_3 = quantile.(KDEs_OTU_3, lq)
 uqs_OTU_3 = quantile.(KDEs_OTU_3, uq);
 
 # Remove objects to save memory
-Sediminis = 0; KDEs_Sediminis = 0;
+OTU_3 = 0; KDEs_OTU_3 = 0;
 ```
 We also want to replace any negative value by 1 due to the log scale on future plots.
 ```Julia
-meds_Sediminis[meds_Sediminis .< 1] .= 1;
-uqs_Sediminis[uqs_Sediminis .< 1] .= 1;
-lqs_Sediminis[lqs_Sediminis .< 1] .= 1;
+meds_OTU_3[meds_OTU_3 .< 1] .= 1;
+uqs_OTU_3[uqs_OTU_3 .< 1] .= 1;
+lqs_OTU_3[lqs_OTU_3 .< 1] .= 1;
 ```
 Good, now we can export the data for plotting in R (last script).
 ```Julia
@@ -180,3 +180,43 @@ df = DataFrame(
 CSV.write("./FILENAME.csv", df);
 ```
 ## Computing growth/decay rates
+Here we are doing this manually, because many parts of the plots are not reliable (remember all these oscillations of values between 0 and ~100 in figure 2) we cannot just ask where is the highest growth/decay rate in the whole plot. So first lets choose the section that we want to investigation. For the groath of OTU_3, this is roughly the section between 35K and 37K years old. We need then to look at which sections of the age grid this corresponds. For getting this info, run the following code:
+```Julia
+ageID = for (i, val) in enumerate(age_grid)
+    println(i, ": ", val)
+end
+show(ageID)
+```
+In our case this corresponds to positions 703-743. Let us plot these part:
+```Julia
+# Define the interval of investigation
+sed_age_itvl = 703:743
+
+# Set up the plot
+plot_OTU_3 = plot(
+    age_grid[sed_age_itvl], meds_OTU_3[sed_age_itvl], 
+    ribbon = (meds_OTU_3[sed_age_itvl] .- lqs_OTU_3[sed_age_itvl], 
+              uqs_OTU_3[sed_age_itvl] .- meds_OTU_3[sed_age_itvl]), 
+    yscale = :log10, ylabel = "Copies g⁻¹ sed.", title = "OTU_3", 
+    fillalpha = 0.4, fc = :green, c = :green, legend = false
+)
+```
+![image](https://github.com/user-attachments/assets/0a1125ea-345d-4121-9705-ecc9520d80fb)
+
+Now we can look at the doubling time for the same period:
+```Julia
+growth_rates = 1 ./ ((log2.(meds_Sediminis[2:end]) .- log2.(meds_Sediminis[1:end-1])) ./ bin_width)
+
+plot(age_grid[sed_age_itvl], growth_rates[sed_age_itvl], 
+     ylims = (-1000, 1000),
+     ylabel = "years", xlabel = "", title = "Doubling times", 
+     legend = false, c = :red)
+```
+![image](https://github.com/user-attachments/assets/40ce1639-2cf2-419c-8ff7-cfb92a9d1e8d)
+
+This plot is a bit counterintuitive to interpret. We are looking at doubling times, meaning that anything positive means growth, and anything negative means decay. However, the closest to 0 means growth or decay happens the fastest. Therefore, the jumps from extremely positive values to extremely negative values represent a transition from a slow growth to a slow decay. In our case we want to find the lowest positive value around 35500 years old. Let's print the doubling time. By looking again at our age grid we can refine a bit better the interval of investigation to 710-720.
+```Julia
+println(1 ./ ((log2.(meds_Sediminis[710:720]) .- log2.(meds_Sediminis[709:719])) ./ bin_width))
+```
+In position 4, we get 62 years doubling time. One could argue that there is a 38 years in position 1, but looking at the plot it looks a bit like a first hic up before the real growth.
+Voila. This approach can be applied to each curve, both for growth and decay (then one would look for the smallest negative value).
