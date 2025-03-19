@@ -10,7 +10,9 @@ This repository contains the integrality of the scripts and files needed to repr
 - While it is not possible for us to compute the output of the Julia script for all taxonomic groups, we have made it possible to everyone to select a group and process it to investigate its evolution throughout the core. In the Input directory within the JuliaScript directory, you will find everything needed:
   - The age model (Julia_age_model.csv).
   - The qPCR data (Julia_qPCR.csv).
-  - The absolute abundance of each taxa at each taxonomic level (Julia_TAXONOMICLEVEL_mean.csv), along with its uncertainty (Julia_TAXONOMICLEVEL_sd.csv).
+  - The absolute abundance of each taxa at each taxonomic level (Julia_TAXONOMICLEVEL_mean.csv), along with its uncertainty (Julia_TAXONOMICLEVEL_sd.csv).  
+
+You then just need to adapt the Julia script to the taxa of interest and run it.
 
 ## Data processing
 All our pipeline is described in the following links. Note that these steps shoudl be run in order, but we also provide the files needed to run each part separately (see Input directories).
