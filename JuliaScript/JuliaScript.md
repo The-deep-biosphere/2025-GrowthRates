@@ -1,5 +1,5 @@
 # Julia script for dealing with uncertainties
-So now we can run the main part of this whole pipeline: Dealing with the age and abundance uncertainty. This is done using a Julia script. Note that you will need the Project.toml file in the same directory as your script. As well, the following script is tailored to our dataset (file names, column numbers...) and this should be changed to suit other needs.
+So now we can run the main part of this whole pipeline: Dealing with the age and abundance uncertainty. This is done using a Julia script. Note that you will need the Project.toml and Manifest.toml files in the same directory as your script. As well, the following script is tailored to our dataset (file names, column numbers...) and this should be changed to suit other needs.
 
 ## Load needed dependencies and data
 First we can set up the local environment and load the needed packages. 
